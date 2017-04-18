@@ -57,7 +57,7 @@ define letsencrypt::certonly (
   validate_bool($manage_cron)
   validate_bool($suppress_cron_output)
 
-  $command_start = "${letsencrypt_command} --text --agree-tos certonly -a ${plugin} "
+  $command_start = "${letsencrypt_command} --non-interactive --text --agree-tos certonly -a ${plugin} "
   $command_domains = $plugin ? {
     'webroot' => inline_template('<%= @domains.zip(@webroot_paths).map { |domain| "#{"--webroot-path #{domain[1]} " if domain[1]}-d #{domain[0]}"}.join(" ") %>'),
     default   => inline_template('-d <%= @domains.join(" -d ")%>'),
