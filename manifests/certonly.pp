@@ -24,6 +24,8 @@
 # [*manage_cron*]
 #   Boolean indicating whether or not to schedule cron job for renewal.
 #   Runs daily but only renews if near expiration, e.g. within 10 days.
+# [*cron_before_command*]
+#   String representation of a command that should be run before renewal command
 # [*cron_success_command*]
 #   String representation of a command that should be run if the renewal command
 #   succeeds.
@@ -36,6 +38,8 @@ define letsencrypt::certonly (
   $additional_args      = undef,
   $environment          = [],
   $manage_cron          = false,
+  $suppress_cron_output = false,
+  $cron_before_command  = undef,
   $cron_success_command = undef,
 ) {
   validate_array($domains)
@@ -51,8 +55,9 @@ define letsencrypt::certonly (
   }
   validate_array($environment)
   validate_bool($manage_cron)
+  validate_bool($suppress_cron_output)
 
-  $command_start = "${letsencrypt_command} --agree-tos certonly -a ${plugin} "
+  $command_start = "${letsencrypt_command} --text --agree-tos certonly -a ${plugin} "
   $command_domains = $plugin ? {
     'webroot' => inline_template('<%= @domains.zip(@webroot_paths).map { |domain| "#{"--webroot-path #{domain[1]} " if domain[1]}-d #{domain[0]}"}.join(" ") %>'),
     default   => inline_template('-d <%= @domains.join(" -d ")%>'),
@@ -71,7 +76,17 @@ define letsencrypt::certonly (
   }
 
   if $manage_cron {
-    $renewcommand = "${command_start}--keep-until-expiring --quiet ${command_domains}${command_end}"
+    $maincommand = "${command_start}--keep-until-expiring ${command_domains}${command_end}"
+    if $suppress_cron_output {
+      $croncommand = "${maincommand} > /dev/null 2>&1"
+    } else {
+      $croncommand = $maincommand
+    }
+    if $cron_before_command {
+      $renewcommand = "(${cron_before_command}) && ${croncommand}"
+    } else {
+      $renewcommand = $croncommand
+    }
     if $cron_success_command {
       $cron_cmd = "${renewcommand} && (${cron_success_command})"
     } else {
